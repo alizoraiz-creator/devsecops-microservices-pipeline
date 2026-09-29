@@ -1,0 +1,25 @@
+{
+  "displayName": "Kubernetes - Pod Security Violation",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Pod Security Standards Blocked Event",
+      "conditionThreshold": {
+        "filter": "resource.type = \"k8s_cluster\" AND log_id(\"cloudaudit.googleapis.com/activity\") AND protoPayload.methodName = \"io.k8s.core.v1.pods.create\" AND protoPayload.status.code = 7 AND protoPayload.status.message : \"violates PodSecurity\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_COUNT"
+          }
+        ]
+      }
+    }
+  ],
+  "severity": "CRITICAL"
+}

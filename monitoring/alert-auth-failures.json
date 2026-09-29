@@ -1,0 +1,28 @@
+{
+  "displayName": "Auth Service - High Failed Logins",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "401/403 Rate Exceeds Threshold",
+      "conditionThreshold": {
+        "filter": "resource.type = \"k8s_container\" AND resource.labels.namespace_name = \"devsecops-staging\" AND resource.labels.container_name = \"auth-service\" AND jsonPayload.level = \"warn\" AND jsonPayload.message : \"Failed login\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 10,
+        "duration": "60s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_COUNT"
+          }
+        ]
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "severity": "WARNING"
+}

@@ -1,0 +1,28 @@
+rules:
+  - id: hardcoded-jwt-secret
+    patterns:
+      - pattern: jwt.sign(..., "...")
+    message: "Hardcoded JWT secret detected. Use environment variables or a secrets manager."
+    languages:
+      - javascript
+    severity: ERROR
+
+  - id: missing-helmet
+    patterns:
+      - pattern-not-inside: |
+          const $HELMET = require('helmet');
+          ...
+          $APP.use($HELMET());
+      - pattern: $APP.listen(...)
+    message: "Express application is missing Helmet middleware for basic security headers."
+    languages:
+      - javascript
+    severity: WARNING
+
+  - id: insecure-db-query
+    patterns:
+      - pattern: db.query(`... ${$USER_INPUT} ...`)
+    message: "Potential SQL/NoSQL Injection. Use parameterized queries."
+    languages:
+      - javascript
+    severity: ERROR

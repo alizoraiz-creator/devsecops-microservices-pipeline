@@ -1,0 +1,25 @@
+{
+  "displayName": "Kubernetes - Unauthorized Egress Dropped",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Network Policy Drop Count > 0",
+      "conditionThreshold": {
+        "filter": "resource.type = \"k8s_node\" AND logName : \"logs/kubernetes.io%2Fnetwork-logs\" AND jsonPayload.disposition = \"deny\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 10,
+        "duration": "60s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_COUNT"
+          }
+        ]
+      }
+    }
+  ],
+  "severity": "WARNING"
+}

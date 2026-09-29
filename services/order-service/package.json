@@ -1,0 +1,15 @@
+{
+  "name": "order-service",
+  "version": "1.0.0",
+  "description": "Order Microservice with DevSecOps Hardening",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "winston": "^3.11.0",
+    "axios": "^1.6.2"
+  }
+}

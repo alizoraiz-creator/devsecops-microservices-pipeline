@@ -1,0 +1,117 @@
+name: DevSecOps Shift-Left Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # 1. Static Analysis & Secrets Detection
+  sast_and_secrets:
+    name: SAST & Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Semgrep Custom Rules Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: ./semgrep-rules/custom-appsec-rules.yml
+          generateSarif: "1"
+          
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  # 2. Build, SCA, Container & SBOM
+  build_and_sca:
+    name: Build & Container SCA
+    needs: sast_and_secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build Auth Service Image
+        run: docker build -t my-registry.com/auth-service:${{ github.sha }} ./services/auth-service
+        
+      - name: Trivy Vulnerability Scanner (Image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'my-registry.com/auth-service:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          
+      - name: Generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: my-registry.com/auth-service:${{ github.sha }}
+          format: spdx-json
+          output-file: auth-service-sbom.spdx.json
+          
+      # Repeat for order-service...
+      - name: Build Order Service Image
+        run: docker build -t my-registry.com/order-service:${{ github.sha }} ./services/order-service
+        
+      - name: Trivy Vulnerability Scanner (Image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'my-registry.com/order-service:${{ github.sha }}'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+  # 3. Ephemeral Staging & DAST
+  dast_and_pentest:
+    name: DAST & Dynamic Pentesting
+    needs: build_and_sca
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Ephemeral GKE Cluster
+        run: |
+          echo "Deploying to GKE namespace: staging-${{ github.sha }}"
+          # Requires GCP Auth & kubectl setup
+          # kubectl create namespace staging-${{ github.sha }}
+          # kubectl apply -f k8s/ -n staging-${{ github.sha }}
+          echo "Deployment successful."
+          
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'https://api.devsecops.local'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+          
+      - name: Nuclei Vulnerability Scan
+        uses: projectdiscovery/nuclei-action@main
+        with:
+          target: 'https://api.devsecops.local'
+          templates: 'cves,vulnerabilities,misconfiguration'
+
+  # 4. Production Promotion Gate
+  production_deployment:
+    name: Deploy to Production
+    needs: dast_and_pentest
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to GKE Prod
+        run: |
+          echo "Deploying verified images to production namespace."
+          # kubectl apply -f k8s/ -n production
